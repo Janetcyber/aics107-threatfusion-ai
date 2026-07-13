@@ -139,3 +139,48 @@ def train_and_evaluate(
 
 if __name__ == "__main__":
     train_and_evaluate()
+
+
+def predict_all_reports(input_path="data/raw/sample_cti_reports.jsonl"):
+    """
+    Train a model on the FULL corpus and predict ATT&CK techniques (with
+    confidence) for every report. Used to build model-backed enriched case
+    records for the knowledge graph (Lab 5) and downstream stages.
+
+    Note: this is separate from train_and_evaluate(), which holds out a
+    test set specifically to produce an honest, non-leaked performance
+    evaluation (Lab 4's model_evaluation.txt). This function intentionally
+    trains on everything, since its purpose is corpus enrichment, not
+    performance measurement.
+    """
+    reports = load_reports(input_path)
+    texts = [r["text"] for r in reports]
+    labels = [r["attck_techniques"] for r in reports]
+
+    mlb = MultiLabelBinarizer()
+    y = mlb.fit_transform(labels)
+    technique_names = mlb.classes_
+
+    vectorizer = TfidfVectorizer(max_features=500, ngram_range=(1, 2), stop_words="english")
+    X = vectorizer.fit_transform(texts)
+
+    model = OneVsRestClassifier(LogisticRegression(max_iter=1000, random_state=SEED))
+    model.fit(X, y)
+
+    y_pred = model.predict(X)
+    y_proba = model.predict_proba(X)
+
+    predictions = {}
+    for i, report in enumerate(reports):
+        predicted_labels = mlb.inverse_transform(y_pred[i:i+1])[0]
+        confidences = {
+            technique_names[j]: round(float(y_proba[i][j]), 3)
+            for j in range(len(technique_names))
+            if technique_names[j] in predicted_labels
+        }
+        predictions[report["report_id"]] = {
+            "predicted_techniques": list(predicted_labels),
+            "confidences": confidences,
+        }
+
+    return predictions
