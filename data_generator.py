@@ -165,7 +165,61 @@ def generate_report(report_id):
 
 def generate_dataset(n_reports=250, output_path="data/raw/sample_cti_reports.jsonl"):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    reports = [generate_report(i + 1) for i in range(n_reports)]
+
+    # ------------------------------------------------------------------
+    # Deliberately inject a handful of "campaigns": groups of reports
+    # that share the SAME specific C2 IP/domain, simulating multiple
+    # victim organizations hit by the same coordinated threat actor
+    # infrastructure. This is what makes campaign clustering (Lab 5)
+    # meaningful — without shared infrastructure, there is nothing
+    # genuine for the knowledge graph to cluster.
+    # ------------------------------------------------------------------
+    n_campaigns = 4
+    reports_per_campaign = 4
+    campaign_report_count = n_campaigns * reports_per_campaign
+
+    reports = []
+    report_id_counter = 1
+
+    for campaign_num in range(n_campaigns):
+        shared_scenario = random.choice(SCENARIOS)
+        shared_ip = random_safe_ip()
+        shared_domain = random_safe_domain()
+
+        for _ in range(reports_per_campaign):
+            org = random.choice(ORG_NAMES)
+            date = random_date()
+            file_hash = random_hash()
+
+            text = shared_scenario["template"].format(
+                org=org, date=date, ip=defang(shared_ip), domain=defang(shared_domain)
+            )
+            text += f" A related file hash was observed: {file_hash}."
+
+            reports.append({
+                "report_id": f"RPT-{report_id_counter:04d}",
+                "title": f"{shared_scenario['name'].replace('_', ' ').title()} — {org}",
+                "source": random.choice(SOURCE_FEEDS),
+                "tlp": random.choice(TLP_LEVELS),
+                "date": date,
+                "text": text,
+                "iocs": {
+                    "ips": [shared_ip],
+                    "domains": [shared_domain],
+                    "hashes": [file_hash],
+                },
+                "attck_techniques": list(shared_scenario["techniques"]),
+                "scenario": shared_scenario["name"],
+                "campaign_id": f"CAMPAIGN-{campaign_num + 1}",  # ground truth, for verification
+            })
+            report_id_counter += 1
+
+    # Remaining reports: independently random, as before
+    for _ in range(n_reports - campaign_report_count):
+        r = generate_report(report_id_counter)
+        r["campaign_id"] = None
+        reports.append(r)
+        report_id_counter += 1
 
     with open(output_path, "w") as f:
         for r in reports:
