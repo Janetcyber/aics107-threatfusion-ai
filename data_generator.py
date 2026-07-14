@@ -89,6 +89,18 @@ SCENARIOS = [
             "with {ip}, which had earlier resolved a lookup for {domain}."
         ),
     },
+    {
+        "name": "reconnaissance_scan",
+        "techniques": ["T1046"],
+        "template": (
+            "Passive monitoring at {org} on {date} detected a network service "
+            "discovery scan originating from {ip}, sweeping common service ports "
+            "across the external-facing subnet. No successful exploitation or "
+            "follow-on activity was observed; the scan appears consistent with "
+            "routine reconnaissance rather than an active intrusion. The source "
+            "was later seen briefly resolving {domain}."
+        ),
+    },
 ]
 
 ORG_NAMES = [
